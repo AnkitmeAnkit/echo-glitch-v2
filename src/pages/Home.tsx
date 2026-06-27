@@ -38,14 +38,7 @@ const cardCascade = {
 /* ──────────────────────────────────────────────
    Data
    ────────────────────────────────────────────── */
-const playbooks = [
-  { id: 1, title: 'ChatGPT Mastery Blueprint', desc: 'Unlock the full potential of ChatGPT with advanced prompting techniques.', price: null, category: 'Productivity', rating: 4.8, reviews: 124, image: '/playbook-cover-1.jpg' },
-  { id: 2, title: 'AI Automation Engine', desc: 'Build powerful automation workflows that save hours every day.', price: 29, category: 'Automation', rating: 4.9, reviews: 89, image: '/playbook-cover-2.jpg' },
-  { id: 3, title: 'Prompt Engineering Pro', desc: 'Master the art of prompt engineering for any AI model.', price: null, category: 'Development', rating: 4.7, reviews: 156, image: '/playbook-cover-3.jpg' },
-  { id: 4, title: 'No-Code AI Workflows', desc: 'Create AI-powered workflows without writing a single line of code.', price: 49, category: 'No-Code', rating: 4.8, reviews: 67, image: '/playbook-cover-4.jpg' },
-  { id: 5, title: 'Data Analysis with AI', desc: 'Transform raw data into actionable insights using AI tools.', price: null, category: 'Data', rating: 4.6, reviews: 93, image: '/playbook-cover-5.jpg' },
-  { id: 6, title: 'AI Content System', desc: 'Build a complete content creation pipeline powered by AI.', price: 39, category: 'Marketing', rating: 4.9, reviews: 112, image: '/playbook-cover-6.jpg' },
-];
+const playbooks: any[] = [];
 
 const steps = [
   { icon: Search, title: 'Browse', desc: 'Explore free and premium playbooks across categories.' },
@@ -54,14 +47,7 @@ const steps = [
   { icon: Rocket, title: 'Execute', desc: 'Open the .html file and start mastering.' },
 ];
 
-const testimonials = [
-  { name: 'Sarah Chen', role: 'Product Manager', avatar: '/avatar-1.jpg', quote: 'The Automation Engine playbook saved me 15 hours a week. Worth every penny.', rating: 5 },
-  { name: 'Marcus Webb', role: 'Developer', avatar: '/avatar-2.jpg', quote: 'Finally, AI content that isn\'t fluff. Dense, actionable, and immediately useful.', rating: 5 },
-  { name: 'Priya Nair', role: 'Marketing Lead', avatar: '/avatar-3.jpg', quote: 'The Prompt Engineering Pro is my daily reference. Game changer.', rating: 5 },
-  { name: 'James Rodriguez', role: 'Startup Founder', avatar: '/avatar-4.jpg', quote: 'Echo Glitch playbooks are the only AI resources I actually finish and use.', rating: 4 },
-  { name: 'Elena Volkov', role: 'Data Scientist', avatar: '/avatar-5.jpg', quote: 'These playbooks cut through the noise. Exactly what I needed.', rating: 5 },
-  { name: 'David Kim', role: 'UX Designer', avatar: '/avatar-6.jpg', quote: 'The No-Code AI Workflows transformed how I prototype. Absolutely brilliant.', rating: 5 },
-];
+const testimonials: any[] = [];
 
 /* ──────────────────────────────────────────────
    Toast Component
