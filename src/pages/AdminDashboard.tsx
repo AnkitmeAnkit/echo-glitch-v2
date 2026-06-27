@@ -21,6 +21,10 @@ import type {
   FeedbackEntry, CustomRequest,
   AdminPlaybook, BlogPost, NewsPost,
 } from '@/data/adminData';
+import {
+  mockPurchases, mockFeedback, mockCustomRequests,
+  mockReviews, mockDailyStats, playbooksByCategory, freeVsPaid,
+} from '@/data/adminData';
 
 const viewTitles: Record<AdminView, string> = {
   dashboard: 'Dashboard Overview',

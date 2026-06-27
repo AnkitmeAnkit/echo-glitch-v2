@@ -304,23 +304,37 @@ export default function Blog() {
       setLoading(true);
       const { data, error } = await supabase
         .from('blog_posts')
-        .select('*')
-        .eq('status', 'Published')
-        .order('created_at', { ascending: false });
+        .select(`
+          id,
+          title,
+          slug,
+          excerpt,
+          content,
+          cover_image_url,
+          status,
+          is_featured,
+          published_at,
+          created_at,
+          categories (name, slug),
+          users (full_name, avatar_url)
+        `)
+        .eq('status', 'PUBLISHED')
+        .is('deleted_at', null)
+        .order('published_at', { ascending: false });
       if (!error && data) {
-        // Map Supabase snake_case to camelCase expected by the UI
+        // Map Supabase schema to the shape expected by the UI
         const mapped: BlogPost[] = data.map((p: any) => ({
           id: p.id,
           title: p.title,
           slug: p.slug,
-          category: p.category,
+          category: p.categories?.name || 'General',
           excerpt: p.excerpt,
           content: p.content,
-          coverImage: p.cover_image || '',
+          coverImage: p.cover_image_url || '',
           status: p.status,
-          featured: p.featured,
-          author: { name: p.author || 'Echo Glitch', avatar: '' },
-          date: new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          featured: p.is_featured ?? false,
+          author: { name: p.users?.full_name || 'Echo Glitch', avatar: p.users?.avatar_url || '' },
+          date: new Date(p.published_at || p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           readTime: `${Math.max(1, Math.ceil((p.content?.split(' ').length || 0) / 200))} min read`,
         }));
         setBlogPosts(mapped);
