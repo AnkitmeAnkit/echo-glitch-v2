@@ -131,7 +131,7 @@ export default function PlaybookDetail() {
   }
 
   const isFree = playbook.price === 0;
-  const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+  const avgRating = reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0;
 
   const features = [
     {

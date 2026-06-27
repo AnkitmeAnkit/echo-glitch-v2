@@ -452,87 +452,90 @@ function TestimonialsSection() {
           Trusted by Professionals
         </motion.h2>
 
-        {/* Carousel */}
-        <div className="relative">
-          <div className="overflow-hidden">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentIndex}
-                initial={{ opacity: 0, x: 100 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -100 }}
-                transition={{ duration: 0.5, ease: [0.45, 0.05, 0.55, 0.95] as [number, number, number, number] }}
-                className="flex justify-center"
-              >
-                <div
-                  className="max-w-lg w-full rounded-2xl p-8"
-                  style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    backdropFilter: 'blur(24px)',
-                    WebkitBackdropFilter: 'blur(24px)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                  }}
+        {testimonials.length === 0 ? (
+          <p className="text-center text-white/40 text-sm">No testimonials yet.</p>
+        ) : (
+          <div className="relative">
+            <div className="overflow-hidden">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentIndex}
+                  initial={{ opacity: 0, x: 100 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -100 }}
+                  transition={{ duration: 0.5, ease: [0.45, 0.05, 0.55, 0.95] as [number, number, number, number] }}
+                  className="flex justify-center"
                 >
-                  {/* Stars */}
-                  <div className="flex gap-1 mb-4">
-                    {[...Array(5)].map((_, si) => (
-                      <Star
-                        key={si}
-                        className={`w-4 h-4 ${si < testimonials[currentIndex].rating ? 'text-accent-amber fill-accent-amber' : 'text-gray-500'}`}
+                  <div
+                    className="max-w-lg w-full rounded-2xl p-8"
+                    style={{
+                      background: 'rgba(255,255,255,0.05)',
+                      backdropFilter: 'blur(24px)',
+                      WebkitBackdropFilter: 'blur(24px)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    {/* Stars */}
+                    <div className="flex gap-1 mb-4">
+                      {[...Array(5)].map((_, si) => (
+                        <Star
+                          key={si}
+                          className={`w-4 h-4 ${si < testimonials[currentIndex].rating ? 'text-accent-amber fill-accent-amber' : 'text-gray-500'}`}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Quote */}
+                    <p className="text-white/90 italic text-lg leading-relaxed mb-6">
+                      &ldquo;{testimonials[currentIndex].quote}&rdquo;
+                    </p>
+
+                    {/* Author */}
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={testimonials[currentIndex].avatar}
+                        alt={testimonials[currentIndex].name}
+                        className="w-12 h-12 rounded-full object-cover"
                       />
-                    ))}
-                  </div>
-
-                  {/* Quote */}
-                  <p className="text-white/90 italic text-lg leading-relaxed mb-6">
-                    &ldquo;{testimonials[currentIndex].quote}&rdquo;
-                  </p>
-
-                  {/* Author */}
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={testimonials[currentIndex].avatar}
-                      alt={testimonials[currentIndex].name}
-                      className="w-12 h-12 rounded-full object-cover"
-                    />
-                    <div>
-                      <p className="font-medium text-white">{testimonials[currentIndex].name}</p>
-                      <p className="text-sm text-white/50">{testimonials[currentIndex].role}</p>
+                      <div>
+                        <p className="font-medium text-white">{testimonials[currentIndex].name}</p>
+                        <p className="text-sm text-white/50">{testimonials[currentIndex].role}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          {/* Navigation */}
-          <div className="flex items-center justify-center gap-4 mt-8">
-            <button
-              onClick={prev}
-              className="w-10 h-10 rounded-full bg-accent-violet flex items-center justify-center hover:brightness-110 transition-all"
-              aria-label="Previous testimonial"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div className="flex gap-2">
-              {testimonials.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentIndex(i)}
-                  className={`w-2 h-2 rounded-full transition-all duration-300 ${i === currentIndex ? 'bg-accent-violet w-6' : 'bg-white/30'}`}
-                  aria-label={`Go to testimonial ${i + 1}`}
-                />
-              ))}
+                </motion.div>
+              </AnimatePresence>
             </div>
-            <button
-              onClick={next}
-              className="w-10 h-10 rounded-full bg-accent-violet flex items-center justify-center hover:brightness-110 transition-all"
-              aria-label="Next testimonial"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
+
+            {/* Navigation */}
+            <div className="flex items-center justify-center gap-4 mt-8">
+              <button
+                onClick={prev}
+                className="w-10 h-10 rounded-full bg-accent-violet flex items-center justify-center hover:brightness-110 transition-all"
+                aria-label="Previous testimonial"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div className="flex gap-2">
+                {testimonials.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentIndex(i)}
+                    className={`w-2 h-2 rounded-full transition-all duration-300 ${i === currentIndex ? 'bg-accent-violet w-6' : 'bg-white/30'}`}
+                    aria-label={`Go to testimonial ${i + 1}`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={next}
+                className="w-10 h-10 rounded-full bg-accent-violet flex items-center justify-center hover:brightness-110 transition-all"
+                aria-label="Next testimonial"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </section>
   );
