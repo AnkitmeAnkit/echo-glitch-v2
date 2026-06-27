@@ -60,9 +60,11 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 function BlogPostModal({
   post,
   onClose,
+  allPosts,
 }: {
   post: BlogPost;
   onClose: () => void;
+  allPosts: BlogPost[];
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -98,7 +100,7 @@ function BlogPostModal({
     [post.title]
   );
 
-  const relatedPosts = blogPosts
+  const relatedPosts = allPosts
     .filter((p) => p.id !== post.id && p.category === post.category)
     .slice(0, 3);
 
@@ -394,6 +396,7 @@ export default function Blog() {
           <BlogPostModal
             post={selectedPost}
             onClose={() => setSelectedPost(null)}
+            allPosts={blogPosts}
           />
         )}
       </AnimatePresence>
