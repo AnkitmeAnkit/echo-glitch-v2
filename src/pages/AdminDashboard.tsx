@@ -18,13 +18,8 @@ import type { AdminView } from '@/components/AdminSidebar';
 import StatCard from '@/components/StatCard';
 import { supabase } from '@/lib/supabase';
 import type {
-  FeedbackEntry, CustomRequest,
   AdminPlaybook, BlogPost, NewsPost,
-} from '@/data/adminData';
-import {
-  mockPurchases, mockFeedback, mockCustomRequests,
-  mockReviews, mockDailyStats, playbooksByCategory, freeVsPaid,
-  mockAdminPlaybooks, mockBlogPosts, mockNewsPosts,
+  Category
 } from '@/data/adminData';
 
 const viewTitles: Record<AdminView, string> = {
@@ -51,13 +46,13 @@ function DashboardOverview() {
       setLoading(true);
       const [playbooksRes, purchasesRes, blogRes, feedbackRes] = await Promise.all([
         supabase.from('playbooks').select('id', { count: 'exact', head: true }),
-        supabase.from('orders').select('id, playbook_title, customer_name, amount, status, created_at').order('created_at', { ascending: false }).limit(5),
+        supabase.from('orders').select('id, amount, status, created_at, full_name, playbooks(title)').order('created_at', { ascending: false }).limit(5),
         supabase.from('blog_posts').select('id', { count: 'exact', head: true }),
-        supabase.from('feedback').select('id, name, category, message, created_at, status').order('created_at', { ascending: false }).limit(5),
+        supabase.from('form_submissions').select('id, name, type, message_or_requirements, created_at, status').order('created_at', { ascending: false }).limit(5),
       ]);
 
       // Total revenue from all completed orders
-      const { data: revenueData } = await supabase.from('orders').select('amount').eq('status', 'Completed');
+      const { data: revenueData } = await supabase.from('orders').select('amount').eq('status', 'PAID');
       const totalRevenue = revenueData?.reduce((sum: number, o: any) => sum + (o.amount || 0), 0) || 0;
 
       setStats({
@@ -117,12 +112,12 @@ function DashboardOverview() {
               <tbody className="divide-y divide-gray-100">
                 {recentPurchases.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-3 px-4 text-sm font-medium truncate max-w-[160px]" style={{ color: 'var(--text-primary)' }}>{p.playbook_title || p.playbookTitle}</td>
-                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.customer_name || p.customerName}</td>
+                    <td className="py-3 px-4 text-sm font-medium truncate max-w-[160px]" style={{ color: 'var(--text-primary)' }}>{p.playbooks?.title || '-'}</td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.full_name}</td>
                     <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>${p.amount}</td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${p.status === 'Completed' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>
-                        {p.status === 'Completed' ? <CheckCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${p.status === 'PAID' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>
+                        {p.status === 'PAID' ? <CheckCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
                         {p.status}
                       </span>
                     </td>
@@ -141,52 +136,55 @@ function DashboardOverview() {
           className="bg-white rounded-xl border border-gray-200 overflow-hidden"
         >
           <div className="px-5 py-4 border-b border-gray-100">
-            <h3 className="font-clash font-semibold text-base" style={{ color: 'var(--text-primary)' }}>Latest Feedback</h3>
+            <h3 className="font-clash font-semibold text-base" style={{ color: 'var(--text-primary)' }}>Latest Form Submissions</h3>
           </div>
           <div className="divide-y divide-gray-100">
             {recentFeedback.map((f) => (
               <div key={f.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{f.name}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF] font-medium">{f.category}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF] font-medium">{f.type === 'FEEDBACK' ? 'Feedback' : 'Request'}</span>
                 </div>
-                <p className="text-xs line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{f.message}</p>
-                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{f.created_at ? new Date(f.created_at).toLocaleDateString() : f.date}</p>
+                <p className="text-xs line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{f.message_or_requirements}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{f.created_at ? new Date(f.created_at).toLocaleDateString() : '-'}</p>
               </div>
             ))}
+            {recentFeedback.length === 0 && (
+              <div className="px-4 py-6 text-center">
+                <p className="text-xs text-gray-500">No recent submissions</p>
+              </div>
+            )}
           </div>
         </motion.div>
       </div>
-
-      {/* Quick chart */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-        className="bg-white rounded-xl border border-gray-200 p-5"
-      >
-        <h3 className="font-clash font-semibold text-base mb-4" style={{ color: 'var(--text-primary)' }}>Weekly Purchases</h3>
-        <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={[]}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="date" tickFormatter={(v: string) => v.slice(5)} stroke="#A0AEC0" fontSize={12} />
-            <YAxis stroke="#A0AEC0" fontSize={12} />
-            <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }} />
-            <Line type="monotone" dataKey="purchases" stroke="#6C63FF" strokeWidth={2} dot={{ r: 3, fill: '#6C63FF' }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </motion.div>
     </div>
   );
 }
 
 /* ──────────────────── Playbooks Management ──────────────────── */
 function PlaybooksManagement() {
-  const [items, setItems] = useState<AdminPlaybook[]>(mockAdminPlaybooks);
+  const [items, setItems] = useState<AdminPlaybook[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<AdminPlaybook | null>(null);
+  const [editing, setEditing] = useState<Partial<AdminPlaybook> | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    setLoading(true);
+    const [playbooksRes, catsRes] = await Promise.all([
+      supabase.from('playbooks').select('*, categories(name, slug)').is('deleted_at', null).order('created_at', { ascending: false }),
+      supabase.from('categories').select('*').eq('type', 'PLAYBOOK')
+    ]);
+    if (playbooksRes.data) setItems(playbooksRes.data as any);
+    if (catsRes.data) setCategories(catsRes.data);
+    setLoading(false);
+  }
 
   const filtered = useMemo(() =>
     items.filter((i) => i.title.toLowerCase().includes(search.toLowerCase())),
@@ -195,8 +193,8 @@ function PlaybooksManagement() {
 
   const openCreate = () => {
     setEditing({
-      id: Date.now(), title: '', description: '', category: 'AI Automation',
-      price: 0, status: 'Draft', downloads: 0, coverImage: '', fileUrl: '', rating: 0, reviewCount: 0,
+      title: '', description: '', category_id: categories[0]?.id || '',
+      price: 0, status: 'DRAFT', is_featured: false, cover_image_url: '', file_path: '', slug: ''
     });
     setShowModal(true);
   };
@@ -206,20 +204,40 @@ function PlaybooksManagement() {
     setShowModal(true);
   };
 
-  const savePlaybook = () => {
+  const savePlaybook = async () => {
     if (!editing) return;
-    setItems((prev) => {
-      const exists = prev.find((p) => p.id === editing.id);
-      if (exists) return prev.map((p) => (p.id === editing.id ? editing : p));
-      return [...prev, editing];
-    });
-    setShowModal(false);
-    setEditing(null);
+    
+    // Auto-generate slug if empty
+    if (!editing.slug && editing.title) {
+      editing.slug = editing.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    }
+
+    try {
+      if (editing.id) {
+        // Update
+        const { id, categories: _c, playbook_reviews: _r, ...updateData } = editing as any;
+        await supabase.from('playbooks').update({ ...updateData, updated_at: new Date().toISOString() }).eq('id', id);
+      } else {
+        // Insert
+        await supabase.from('playbooks').insert(editing as any);
+      }
+      setShowModal(false);
+      setEditing(null);
+      fetchData(); // Refresh list
+    } catch (err) {
+      console.error('Error saving playbook:', err);
+      alert('Error saving playbook. Make sure the slug is unique.');
+    }
   };
 
-  const deletePlaybook = (id: number) => {
-    setItems((prev) => prev.filter((p) => p.id !== id));
-    setDeleteConfirm(null);
+  const deletePlaybook = async (id: string) => {
+    try {
+      await supabase.from('playbooks').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting playbook:', err);
+    }
   };
 
   return (
@@ -246,37 +264,40 @@ function PlaybooksManagement() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                {['Title', 'Category', 'Price', 'Status', 'Downloads', 'Actions'].map((h) => (
-                  <th key={h} className="text-left text-xs font-medium uppercase tracking-wider py-3 px-4" style={{ color: 'var(--text-muted)' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{p.title}</td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.category}</td>
-                  <td className="py-3 px-4 text-sm font-medium">{p.price === 0 ? <span className="text-[#00BFA6]">Free</span> : <span style={{ color: 'var(--text-primary)' }}>${p.price}</span>}</td>
-                  <td className="py-3 px-4">
-                    <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${p.status === 'Published' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>{p.status}</span>
-                  </td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.downloads.toLocaleString()}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: 'var(--text-muted)' }}><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => setDeleteConfirm(String(p.id))} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" style={{ color: 'var(--accent-rose)' }}><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </td>
+        {loading ? (
+          <div className="p-8 flex justify-center"><RefreshCw className="w-6 h-6 animate-spin text-[#6C63FF]" /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50">
+                  {['Title', 'Category', 'Price', 'Status', 'Actions'].map((h) => (
+                    <th key={h} className="text-left text-xs font-medium uppercase tracking-wider py-3 px-4" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && (
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{p.title}</td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.categories?.name || '-'}</td>
+                    <td className="py-3 px-4 text-sm font-medium">{p.price === 0 ? <span className="text-[#00BFA6]">Free</span> : <span style={{ color: 'var(--text-primary)' }}>${p.price}</span>}</td>
+                    <td className="py-3 px-4">
+                      <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${p.status === 'PUBLISHED' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>{p.status}</span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: 'var(--text-muted)' }}><Pencil className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setDeleteConfirm(String(p.id))} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" style={{ color: 'var(--accent-rose)' }}><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <div className="py-12 text-center">
             <FileText className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No playbooks found</p>
@@ -299,13 +320,19 @@ function PlaybooksManagement() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="font-clash font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>{editing.title ? 'Edit Playbook' : 'Add Playbook'}</h3>
+                <h3 className="font-clash font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>{editing.id ? 'Edit Playbook' : 'Add Playbook'}</h3>
                 <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="w-5 h-5" style={{ color: 'var(--text-muted)' }} /></button>
               </div>
               <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Title</label>
-                  <input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Title</label>
+                    <input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Slug</label>
+                    <input value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: e.target.value })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" placeholder="Auto-generated if empty" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Description</label>
@@ -314,8 +341,9 @@ function PlaybooksManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Category</label>
-                    <select value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
-                      {['AI Automation', 'Prompt Engineering', 'Workflow', 'Business', 'Creative'].map((c) => <option key={c} value={c}>{c}</option>)}
+                    <select value={editing.category_id} onChange={(e) => setEditing({ ...editing, category_id: e.target.value })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
+                      {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {categories.length === 0 && <option value="">No categories found</option>}
                     </select>
                   </div>
                   <div>
@@ -326,19 +354,26 @@ function PlaybooksManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Status</label>
-                    <select value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as 'Published' | 'Draft' })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
-                      <option value="Published">Published</option>
-                      <option value="Draft">Draft</option>
+                    <select value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as any })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
+                      <option value="PUBLISHED">Published</option>
+                      <option value="DRAFT">Draft</option>
+                      <option value="ARCHIVED">Archived</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Cover Image URL</label>
-                    <input value={editing.coverImage} onChange={(e) => setEditing({ ...editing, coverImage: e.target.value })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" placeholder="/playbook-cover-X.jpg" />
+                  <div className="flex items-center gap-2 mt-6">
+                    <input type="checkbox" id="featuredPlaybook" checked={editing.is_featured} onChange={(e) => setEditing({ ...editing, is_featured: e.target.checked })} className="rounded" />
+                    <label htmlFor="featuredPlaybook" className="text-sm" style={{ color: 'var(--text-secondary)' }}>Featured Playbook</label>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>File URL</label>
-                  <input value={editing.fileUrl} onChange={(e) => setEditing({ ...editing, fileUrl: e.target.value })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Cover Image URL (or upload to public_assets bucket)</label>
+                    <input value={editing.cover_image_url} onChange={(e) => setEditing({ ...editing, cover_image_url: e.target.value })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" placeholder="https://..." />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>File Path (storage path)</label>
+                    <input value={editing.file_path} onChange={(e) => setEditing({ ...editing, file_path: e.target.value })} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
+                  </div>
                 </div>
               </div>
               <div className="p-6 border-t border-gray-100 flex items-center justify-end gap-3">
@@ -359,7 +394,7 @@ function PlaybooksManagement() {
               <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>Are you sure? This action cannot be undone.</p>
               <div className="flex justify-end gap-3">
                 <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 rounded-full text-sm border border-gray-200 hover:bg-gray-50">Cancel</button>
-                <button onClick={() => deletePlaybook(Number(deleteConfirm))} className="px-4 py-2 rounded-full text-white text-sm font-medium" style={{ background: 'var(--accent-rose)' }}>Delete</button>
+                <button onClick={() => deletePlaybook(deleteConfirm)} className="px-4 py-2 rounded-full text-white text-sm font-medium" style={{ background: 'var(--accent-rose)' }}>Delete</button>
               </div>
             </motion.div>
           </motion.div>
@@ -371,11 +406,29 @@ function PlaybooksManagement() {
 
 /* ──────────────────── Blog Management ──────────────────── */
 function BlogManagement() {
-  const [items, setItems] = useState<BlogPost[]>(mockBlogPosts);
+  const [items, setItems] = useState<BlogPost[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<BlogPost | null>(null);
+  const [editing, setEditing] = useState<Partial<BlogPost> | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    setLoading(true);
+    const [blogsRes, catsRes] = await Promise.all([
+      supabase.from('blog_posts').select('*, categories(name, slug), users(full_name, avatar_url)').is('deleted_at', null).order('created_at', { ascending: false }),
+      supabase.from('categories').select('*').eq('type', 'BLOG')
+    ]);
+    if (blogsRes.data) setItems(blogsRes.data as any);
+    if (catsRes.data) setCategories(catsRes.data);
+    setLoading(false);
+  }
 
   const filtered = useMemo(() =>
     items.filter((i) => i.title.toLowerCase().includes(search.toLowerCase())),
@@ -383,7 +436,12 @@ function BlogManagement() {
   );
 
   const openCreate = () => {
-    setEditing({ id: String(Date.now()), title: '', slug: '', category: 'AI Trends', author: 'Admin', excerpt: '', content: '', status: 'Draft', date: new Date().toISOString().split('T')[0], featured: false });
+    setEditing({
+      title: '', slug: '', category_id: categories[0]?.id || '',
+      excerpt: '', content: '', status: 'DRAFT', is_featured: false,
+      published_at: new Date().toISOString().split('T')[0],
+      cover_image_url: ''
+    });
     setShowPreview(false);
     setShowModal(true);
   };
@@ -394,19 +452,43 @@ function BlogManagement() {
     setShowModal(true);
   };
 
-  const saveBlog = () => {
+  const saveBlog = async () => {
     if (!editing) return;
-    setItems((prev) => {
-      const exists = prev.find((b) => b.id === editing.id);
-      if (exists) return prev.map((b) => (b.id === editing.id ? editing : b));
-      return [...prev, editing];
-    });
-    setShowModal(false);
-    setEditing(null);
+    
+    if (!editing.slug && editing.title) {
+      editing.slug = editing.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    }
+
+    try {
+      // If creating new, we need an author_id. Let's get the current user.
+      const { data: { user } } = await supabase.auth.getUser();
+      const author_id = user?.id;
+
+      if (editing.id) {
+        // Update
+        const { id, categories: _c, users: _u, ...updateData } = editing as any;
+        await supabase.from('blog_posts').update({ ...updateData, updated_at: new Date().toISOString() }).eq('id', id);
+      } else {
+        // Insert
+        await supabase.from('blog_posts').insert({ ...editing, author_id } as any);
+      }
+      setShowModal(false);
+      setEditing(null);
+      fetchData();
+    } catch (err) {
+      console.error('Error saving blog post:', err);
+      alert('Error saving post. Slug must be unique.');
+    }
   };
 
-  const deleteBlog = (id: string) => {
-    setItems((prev) => prev.filter((b) => b.id !== id));
+  const deleteBlog = async (id: string) => {
+    try {
+      await supabase.from('blog_posts').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting blog post:', err);
+    }
   };
 
   return (
@@ -420,35 +502,39 @@ function BlogManagement() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                {['Title', 'Category', 'Author', 'Status', 'Date', 'Actions'].map((h) => (
-                  <th key={h} className="text-left text-xs font-medium uppercase tracking-wider py-3 px-4" style={{ color: 'var(--text-muted)' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((b) => (
-                <tr key={b.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4 text-sm font-medium truncate max-w-[200px]" style={{ color: 'var(--text-primary)' }}>{b.title}</td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{b.category}</td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{b.author}</td>
-                  <td className="py-3 px-4"><span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${b.status === 'Published' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>{b.status}</span></td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-muted)' }}>{b.date}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(b)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: 'var(--text-muted)' }}><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => deleteBlog(b.id)} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" style={{ color: 'var(--accent-rose)' }}><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </td>
+        {loading ? (
+          <div className="p-8 flex justify-center"><RefreshCw className="w-6 h-6 animate-spin text-[#6C63FF]" /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50">
+                  {['Title', 'Category', 'Author', 'Status', 'Date', 'Actions'].map((h) => (
+                    <th key={h} className="text-left text-xs font-medium uppercase tracking-wider py-3 px-4" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && (
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((b) => (
+                  <tr key={b.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-4 text-sm font-medium truncate max-w-[200px]" style={{ color: 'var(--text-primary)' }}>{b.title}</td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{b.categories?.name || '-'}</td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{b.users?.full_name || 'Admin'}</td>
+                    <td className="py-3 px-4"><span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${b.status === 'PUBLISHED' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>{b.status}</span></td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-muted)' }}>{b.published_at ? new Date(b.published_at).toLocaleDateString() : '-'}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openEdit(b)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: 'var(--text-muted)' }}><Pencil className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setDeleteConfirm(String(b.id))} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" style={{ color: 'var(--accent-rose)' }}><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <div className="py-12 text-center">
             <FileText className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No blog posts found</p>
@@ -456,36 +542,53 @@ function BlogManagement() {
         )}
       </div>
 
+      {/* Delete Confirmation */}
+      <AnimatePresence>
+        {deleteConfirm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+              <h3 className="font-clash font-semibold text-lg mb-2" style={{ color: 'var(--text-primary)' }}>Delete Blog Post</h3>
+              <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>Are you sure? This action cannot be undone.</p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 rounded-full text-sm border border-gray-200 hover:bg-gray-50">Cancel</button>
+                <button onClick={() => deleteBlog(deleteConfirm)} className="px-4 py-2 rounded-full text-white text-sm font-medium" style={{ background: 'var(--accent-rose)' }}>Delete</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Blog Editor Modal */}
       <AnimatePresence>
         {showModal && editing && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" onClick={() => setShowModal(false)}>
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="font-clash font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>{editing.title ? 'Edit Post' : 'New Blog Post'}</h3>
+                <h3 className="font-clash font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>{editing.id ? 'Edit Post' : 'New Blog Post'}</h3>
                 <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="w-5 h-5" style={{ color: 'var(--text-muted)' }} /></button>
               </div>
               <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Title</label>
-                    <input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
+                    <input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Slug</label>
-                    <input value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
+                    <input value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" placeholder="Auto-generated if empty" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Category</label>
-                    <select value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
-                      {['AI Trends', 'Prompt Engineering', 'Tutorial', 'Creative', 'Business'].map((c) => <option key={c} value={c}>{c}</option>)}
+                    <select value={editing.category_id} onChange={(e) => setEditing({ ...editing, category_id: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
+                      {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {categories.length === 0 && <option value="">No categories found</option>}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Author</label>
-                    <input value={editing.author} onChange={(e) => setEditing({ ...editing, author: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Cover Image URL</label>
+                    <input value={editing.cover_image_url} onChange={(e) => setEditing({ ...editing, cover_image_url: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" placeholder="https://..." />
                   </div>
                 </div>
                 <div>
@@ -495,14 +598,15 @@ function BlogManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Status</label>
-                    <select value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as 'Published' | 'Draft' })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
-                      <option value="Published">Published</option>
-                      <option value="Draft">Draft</option>
+                    <select value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as any })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
+                      <option value="PUBLISHED">Published</option>
+                      <option value="DRAFT">Draft</option>
+                      <option value="ARCHIVED">Archived</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Date</label>
-                    <input type="date" value={editing.date} onChange={(e) => setEditing({ ...editing, date: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Published Date</label>
+                    <input type="date" value={editing.published_at ? editing.published_at.split('T')[0] : ''} onChange={(e) => setEditing({ ...editing, published_at: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -540,10 +644,28 @@ function BlogManagement() {
 
 /* ──────────────────── News Management ──────────────────── */
 function NewsManagement() {
-  const [items, setItems] = useState<NewsPost[]>(mockNewsPosts);
+  const [items, setItems] = useState<NewsPost[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<NewsPost | null>(null);
+  const [editing, setEditing] = useState<Partial<NewsPost> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    setLoading(true);
+    const [newsRes, catsRes] = await Promise.all([
+      supabase.from('news_posts').select('*, categories(name, slug), users(full_name, avatar_url)').is('deleted_at', null).order('created_at', { ascending: false }),
+      supabase.from('categories').select('*').eq('type', 'NEWS')
+    ]);
+    if (newsRes.data) setItems(newsRes.data as any);
+    if (catsRes.data) setCategories(catsRes.data);
+    setLoading(false);
+  }
 
   const filtered = useMemo(() =>
     items.filter((i) => i.title.toLowerCase().includes(search.toLowerCase())),
@@ -551,23 +673,50 @@ function NewsManagement() {
   );
 
   const openCreate = () => {
-    setEditing({ id: String(Date.now()), title: '', slug: '', category: 'Announcement', author: 'Echo Team', excerpt: '', content: '', status: 'Draft', date: new Date().toISOString().split('T')[0], featured: false });
+    setEditing({
+      title: '', slug: '', category_id: categories[0]?.id || '',
+      excerpt: '', content: '', status: 'DRAFT', timeline_date: new Date().toISOString().split('T')[0],
+      published_at: new Date().toISOString().split('T')[0]
+    });
     setShowModal(true);
   };
 
-  const saveNews = () => {
+  const saveNews = async () => {
     if (!editing) return;
-    setItems((prev) => {
-      const exists = prev.find((n) => n.id === editing.id);
-      if (exists) return prev.map((n) => (n.id === editing.id ? editing : n));
-      return [...prev, editing];
-    });
-    setShowModal(false);
-    setEditing(null);
+
+    if (!editing.slug && editing.title) {
+      editing.slug = editing.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const author_id = user?.id;
+
+      if (editing.id) {
+        // Update
+        const { id, categories: _c, users: _u, ...updateData } = editing as any;
+        await supabase.from('news_posts').update({ ...updateData, updated_at: new Date().toISOString() }).eq('id', id);
+      } else {
+        // Insert
+        await supabase.from('news_posts').insert({ ...editing, author_id } as any);
+      }
+      setShowModal(false);
+      setEditing(null);
+      fetchData();
+    } catch (err) {
+      console.error('Error saving news post:', err);
+      alert('Error saving post. Slug must be unique.');
+    }
   };
 
-  const deleteNews = (id: string) => {
-    setItems((prev) => prev.filter((n) => n.id !== id));
+  const deleteNews = async (id: string) => {
+    try {
+      await supabase.from('news_posts').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting news post:', err);
+    }
   };
 
   return (
@@ -581,35 +730,39 @@ function NewsManagement() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                {['Title', 'Category', 'Author', 'Status', 'Date', 'Actions'].map((h) => (
-                  <th key={h} className="text-left text-xs font-medium uppercase tracking-wider py-3 px-4" style={{ color: 'var(--text-muted)' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((n) => (
-                <tr key={n.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4 text-sm font-medium truncate max-w-[200px]" style={{ color: 'var(--text-primary)' }}>{n.title}</td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{n.category}</td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{n.author}</td>
-                  <td className="py-3 px-4"><span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${n.status === 'Published' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>{n.status}</span></td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-muted)' }}>{n.date}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => { setEditing({ ...n }); setShowModal(true); }} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: 'var(--text-muted)' }}><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => deleteNews(n.id)} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" style={{ color: 'var(--accent-rose)' }}><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </td>
+        {loading ? (
+          <div className="p-8 flex justify-center"><RefreshCw className="w-6 h-6 animate-spin text-[#6C63FF]" /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50">
+                  {['Title', 'Category', 'Author', 'Status', 'Date', 'Actions'].map((h) => (
+                    <th key={h} className="text-left text-xs font-medium uppercase tracking-wider py-3 px-4" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && (
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((n) => (
+                  <tr key={n.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-4 text-sm font-medium truncate max-w-[200px]" style={{ color: 'var(--text-primary)' }}>{n.title}</td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{n.categories?.name || '-'}</td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{n.users?.full_name || 'Admin'}</td>
+                    <td className="py-3 px-4"><span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${n.status === 'PUBLISHED' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>{n.status}</span></td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-muted)' }}>{n.published_at ? new Date(n.published_at).toLocaleDateString() : '-'}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => { setEditing({ ...n }); setShowModal(true); }} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: 'var(--text-muted)' }}><Pencil className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setDeleteConfirm(String(n.id))} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" style={{ color: 'var(--accent-rose)' }}><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <div className="py-12 text-center">
             <Newspaper className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No news posts found</p>
@@ -617,47 +770,70 @@ function NewsManagement() {
         )}
       </div>
 
+      {/* Delete Confirmation */}
+      <AnimatePresence>
+        {deleteConfirm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+              <h3 className="font-clash font-semibold text-lg mb-2" style={{ color: 'var(--text-primary)' }}>Delete News Post</h3>
+              <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>Are you sure? This action cannot be undone.</p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 rounded-full text-sm border border-gray-200 hover:bg-gray-50">Cancel</button>
+                <button onClick={() => deleteNews(deleteConfirm)} className="px-4 py-2 rounded-full text-white text-sm font-medium" style={{ background: 'var(--accent-rose)' }}>Delete</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* News Editor Modal */}
       <AnimatePresence>
         {showModal && editing && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" onClick={() => setShowModal(false)}>
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="font-clash font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>{editing.title ? 'Edit News' : 'New News Post'}</h3>
+                <h3 className="font-clash font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>{editing.id ? 'Edit News' : 'New News Post'}</h3>
                 <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="w-5 h-5" style={{ color: 'var(--text-muted)' }} /></button>
               </div>
               <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Title</label>
-                    <input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
+                    <input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
                   </div>
                   <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Slug</label>
+                    <input value={editing.slug} onChange={(e) => setEditing({ ...editing, slug: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" placeholder="Auto-generated if empty" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Category</label>
-                    <select value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value as 'Product Update' | 'Industry' | 'Announcement' })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
-                      <option value="Product Update">Product Update</option>
-                      <option value="Industry">Industry</option>
-                      <option value="Announcement">Announcement</option>
+                    <select value={editing.category_id} onChange={(e) => setEditing({ ...editing, category_id: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
+                      {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {categories.length === 0 && <option value="">No categories found</option>}
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Timeline Date</label>
+                    <input type="date" value={editing.timeline_date ? editing.timeline_date.split('T')[0] : ''} onChange={(e) => setEditing({ ...editing, timeline_date: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Status</label>
-                    <select value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as 'Published' | 'Draft' })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
-                      <option value="Published">Published</option>
-                      <option value="Draft">Draft</option>
+                    <select value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as any })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20">
+                      <option value="PUBLISHED">Published</option>
+                      <option value="DRAFT">Draft</option>
+                      <option value="ARCHIVED">Archived</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Date</label>
-                    <input type="date" value={editing.date} onChange={(e) => setEditing({ ...editing, date: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Published Date</label>
+                    <input type="date" value={editing.published_at ? editing.published_at.split('T')[0] : ''} onChange={(e) => setEditing({ ...editing, published_at: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" id="featured" checked={editing.featured} onChange={(e) => setEditing({ ...editing, featured: e.target.checked })} className="rounded" />
-                  <label htmlFor="featured" className="text-sm" style={{ color: 'var(--text-secondary)' }}>Featured on homepage</label>
-                </div>
+
                 <div>
                   <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Excerpt</label>
                   <textarea value={editing.excerpt} onChange={(e) => setEditing({ ...editing, excerpt: e.target.value })} rows={2} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/20" />
@@ -681,14 +857,28 @@ function NewsManagement() {
 
 /* ──────────────────── Purchases View ──────────────────── */
 function PurchasesView() {
+  const [items, setItems] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    setLoading(true);
+    const { data } = await supabase.from('orders').select('*, playbooks(title)').order('created_at', { ascending: false });
+    if (data) setItems(data);
+    setLoading(false);
+  }
+
   const filtered = useMemo(() =>
-    mockPurchases.filter((p) =>
-      p.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      p.email.toLowerCase().includes(search.toLowerCase()) ||
-      p.playbookTitle.toLowerCase().includes(search.toLowerCase())
+    items.filter((p) =>
+      (p.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.email || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.playbooks?.title || '').toLowerCase().includes(search.toLowerCase())
     ),
-    [search]
+    [items, search]
   );
 
   return (
@@ -704,31 +894,35 @@ function PurchasesView() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                {['Customer', 'Email', 'Profession', 'Playbook', 'Amount', 'Date', 'Status'].map((h) => (
-                  <th key={h} className="text-left text-xs font-medium uppercase tracking-wider py-3 px-4" style={{ color: 'var(--text-muted)' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{p.customerName}</td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.email}</td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.profession}</td>
-                  <td className="py-3 px-4 text-sm truncate max-w-[150px]" style={{ color: 'var(--text-secondary)' }}>{p.playbookTitle}</td>
-                  <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>${p.amount}</td>
-                  <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-muted)' }}>{p.date}</td>
-                  <td className="py-3 px-4"><span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${p.status === 'Completed' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>{p.status}</span></td>
+        {loading ? (
+          <div className="p-8 flex justify-center"><RefreshCw className="w-6 h-6 animate-spin text-[#6C63FF]" /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50">
+                  {['Customer', 'Email', 'Stripe ID', 'Playbook', 'Amount', 'Date', 'Status'].map((h) => (
+                    <th key={h} className="text-left text-xs font-medium uppercase tracking-wider py-3 px-4" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && (
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{p.full_name}</td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.email}</td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.stripe_session_id?.substring(0, 10)}...</td>
+                    <td className="py-3 px-4 text-sm truncate max-w-[150px]" style={{ color: 'var(--text-secondary)' }}>{p.playbooks?.title || '-'}</td>
+                    <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>${p.amount}</td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-muted)' }}>{new Date(p.created_at).toLocaleDateString()}</td>
+                    <td className="py-3 px-4"><span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${p.status === 'PAID' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>{p.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <div className="py-12 text-center">
             <ShoppingCart className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No purchases found</p>
@@ -738,6 +932,36 @@ function PurchasesView() {
     </div>
   );
 }
+
+const mockReviews = [
+  {
+    id: '1',
+    userName: 'John Doe',
+    date: '2023-10-15',
+    playbookTitle: 'Complete Trading Guide',
+    rating: 5,
+    comment: 'Excellent playbook, very detailed and helpful!',
+    approved: true
+  },
+  {
+    id: '2',
+    userName: 'Jane Smith',
+    date: '2023-10-18',
+    playbookTitle: 'Complete Trading Guide',
+    rating: 4,
+    comment: 'Good content, but could use more examples.',
+    approved: false
+  },
+  {
+    id: '3',
+    userName: 'Alice Johnson',
+    date: '2023-10-20',
+    playbookTitle: 'Advanced Options Strategies',
+    rating: 5,
+    comment: 'This changed my trading game completely.',
+    approved: true
+  }
+];
 
 /* ──────────────────── Reviews View ──────────────────── */
 function ReviewsView() {
@@ -806,28 +1030,43 @@ function ReviewsView() {
 /* ──────────────────── Forms View ──────────────────── */
 function FormsView() {
   const [activeTab, setActiveTab] = useState<'feedback' | 'requests'>('feedback');
-  const [feedbackList, setFeedbackList] = useState<FeedbackEntry[]>(mockFeedback);
-  const [requestsList] = useState<CustomRequest[]>(mockCustomRequests);
+  const [items, setItems] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    setLoading(true);
+    const { data } = await supabase.from('form_submissions').select('*').is('deleted_at', null).order('created_at', { ascending: false });
+    if (data) setItems(data);
+    setLoading(false);
+  }
+
+  const feedbackList = items.filter(i => i.type === 'FEEDBACK');
+  const requestsList = items.filter(i => i.type === 'CUSTOM_REQUEST');
 
   const filteredFeedback = useMemo(() =>
     feedbackList.filter((f) =>
-      f.name.toLowerCase().includes(search.toLowerCase()) ||
-      f.email.toLowerCase().includes(search.toLowerCase())
+      (f.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (f.email || '').toLowerCase().includes(search.toLowerCase())
     ),
     [feedbackList, search]
   );
 
   const filteredRequests = useMemo(() =>
     requestsList.filter((r) =>
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.email.toLowerCase().includes(search.toLowerCase())
+      (r.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.email || '').toLowerCase().includes(search.toLowerCase())
     ),
     [requestsList, search]
   );
 
-  const updateFeedbackStatus = (id: string, status: 'New' | 'In Progress' | 'Resolved') => {
-    setFeedbackList((prev) => prev.map((f) => (f.id === id ? { ...f, status } : f)));
+  const updateStatus = async (id: string, status: string) => {
+    await supabase.from('form_submissions').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    fetchData();
   };
 
   return (
@@ -844,13 +1083,17 @@ function FormsView() {
       </div>
 
       <AnimatePresence mode="wait">
-        {activeTab === 'feedback' ? (
+        {loading ? (
+          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-white rounded-xl border border-gray-200 p-8 flex justify-center">
+            <RefreshCw className="w-6 h-6 animate-spin text-[#6C63FF]" />
+          </motion.div>
+        ) : activeTab === 'feedback' ? (
           <motion.div key="feedback" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
-                    {['Name', 'Email', 'Category', 'Message', 'Date', 'Status', 'Actions'].map((h) => (
+                    {['Name', 'Email', 'Message', 'Date', 'Status', 'Actions'].map((h) => (
                       <th key={h} className="text-left text-xs font-medium uppercase tracking-wider py-3 px-4" style={{ color: 'var(--text-muted)' }}>{h}</th>
                     ))}
                   </tr>
@@ -858,16 +1101,15 @@ function FormsView() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredFeedback.map((f) => (
                     <tr key={f.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{f.name}</td>
+                      <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{f.full_name || 'Anonymous'}</td>
                       <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{f.email}</td>
-                      <td className="py-3 px-4"><span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{f.category}</span></td>
                       <td className="py-3 px-4 text-sm truncate max-w-[200px]" style={{ color: 'var(--text-secondary)' }}>{f.message}</td>
-                      <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-muted)' }}>{f.date}</td>
+                      <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-muted)' }}>{new Date(f.created_at).toLocaleDateString()}</td>
                       <td className="py-3 px-4">
-                        <select value={f.status} onChange={(e) => updateFeedbackStatus(f.id, e.target.value as 'New' | 'In Progress' | 'Resolved')} className="text-xs border border-gray-200 rounded-lg px-2 py-1 outline-none">
-                          <option value="New">New</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Resolved">Resolved</option>
+                        <select value={f.status} onChange={(e) => updateStatus(f.id, e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1 outline-none">
+                          <option value="NEW">New</option>
+                          <option value="REVIEWED">Reviewed</option>
+                          <option value="RESOLVED">Resolved</option>
                         </select>
                       </td>
                       <td className="py-3 px-4">
@@ -899,19 +1141,18 @@ function FormsView() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredRequests.map((r) => (
                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{r.name}</td>
+                      <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{r.full_name}</td>
                       <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{r.email}</td>
-                      <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{r.topic}</td>
-                      <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{r.budget || '-'}</td>
-                      <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-muted)' }}>{r.date}</td>
+                      <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{r.topic || '-'}</td>
+                      <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{r.budget ? `$${r.budget}` : '-'}</td>
+                      <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-muted)' }}>{new Date(r.created_at).toLocaleDateString()}</td>
                       <td className="py-3 px-4">
-                        <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${
-                          r.status === 'New' ? 'bg-[#F43F5E]/10 text-[#F43F5E]' :
-                          r.status === 'Contacted' ? 'bg-[#F59E0B]/10 text-[#F59E0B]' :
-                          r.status === 'In Progress' ? 'bg-[#6C63FF]/10 text-[#6C63FF]' :
-                          r.status === 'Completed' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' :
-                          'bg-gray-100 text-gray-500'
-                        }`}>{r.status}</span>
+                        <select value={r.status} onChange={(e) => updateStatus(r.id, e.target.value)} className="text-xs border border-gray-200 rounded-lg px-2 py-1 outline-none">
+                          <option value="NEW">New</option>
+                          <option value="IN_PROGRESS">In Progress</option>
+                          <option value="CONTACTED">Contacted</option>
+                          <option value="COMPLETED">Completed</option>
+                        </select>
                       </td>
                       <td className="py-3 px-4">
                         <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: 'var(--text-muted)' }}><Eye className="w-3.5 h-3.5" /></button>
@@ -936,6 +1177,89 @@ function FormsView() {
 
 /* ──────────────────── Analytics View ──────────────────── */
 function AnalyticsView() {
+  const [dailyStats, setDailyStats] = useState<any[]>([]);
+  const [playbooksByCategory, setPlaybooksByCategory] = useState<any[]>([]);
+  const [freeVsPaid, setFreeVsPaid] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAnalytics() {
+      setLoading(true);
+
+      const [ordersRes, playbooksRes, categoriesRes] = await Promise.all([
+        supabase.from('orders').select('amount, created_at, status, playbooks(price, category_id)').eq('status', 'PAID'),
+        supabase.from('playbooks').select('id, price, category_id'),
+        supabase.from('categories').select('id, name')
+      ]);
+
+      const orders = ordersRes.data || [];
+      const playbooks = playbooksRes.data || [];
+      const categories = categoriesRes.data || [];
+
+      // 1. Daily Stats (Last 30 Days)
+      const last30Days = [...Array(30)].map((_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (29 - i));
+        return d.toISOString().split('T')[0];
+      });
+
+      const statsMap = last30Days.reduce((acc, date) => {
+        acc[date] = { date, purchases: 0, revenue: 0, visits: Math.floor(Math.random() * 100) + 50 }; // visits mocked as we lack page_views table
+        return acc;
+      }, {} as any);
+
+      orders.forEach((o) => {
+        const date = new Date(o.created_at).toISOString().split('T')[0];
+        if (statsMap[date]) {
+          statsMap[date].purchases += 1;
+          statsMap[date].revenue += o.amount || 0;
+        }
+      });
+
+      setDailyStats(Object.values(statsMap));
+
+      // 2. Playbooks by Category
+      const catMap = categories.reduce((acc: any, c: any) => {
+        acc[c.id] = c.name;
+        return acc;
+      }, {});
+
+      const pbByCat: Record<string, number> = {};
+      playbooks.forEach((pb) => {
+        const catName = pb.category_id && catMap[pb.category_id] ? catMap[pb.category_id] : 'Uncategorized';
+        pbByCat[catName] = (pbByCat[catName] || 0) + 1;
+      });
+
+      setPlaybooksByCategory(Object.entries(pbByCat).map(([category, count]) => ({ category, count })));
+
+      // 3. Free vs Paid Downloads
+      let freeCount = 0;
+      let paidCount = 0;
+      orders.forEach((o: any) => {
+        const price = o.playbooks?.price || 0;
+        if (price === 0) freeCount++;
+        else paidCount++;
+      });
+
+      setFreeVsPaid([
+        { name: 'Paid', value: paidCount, color: '#6C63FF' },
+        { name: 'Free', value: freeCount, color: '#00BFA6' }
+      ]);
+
+      setLoading(false);
+    }
+
+    fetchAnalytics();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-6 h-6 animate-spin text-[#6C63FF]" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {/* Row 1: Line + Bar */}
@@ -943,7 +1267,7 @@ function AnalyticsView() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }} className="bg-white rounded-xl border border-gray-200 p-5">
           <h3 className="font-clash font-semibold text-base mb-4" style={{ color: 'var(--text-primary)' }}>Purchases Over Time (30 Days)</h3>
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={mockDailyStats}>
+            <LineChart data={dailyStats}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="date" tickFormatter={(v: string) => v.slice(5)} stroke="#A0AEC0" fontSize={11} />
               <YAxis stroke="#A0AEC0" fontSize={11} />
@@ -972,7 +1296,7 @@ function AnalyticsView() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }} className="bg-white rounded-xl border border-gray-200 p-5">
           <h3 className="font-clash font-semibold text-base mb-4" style={{ color: 'var(--text-primary)' }}>Website Visits</h3>
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={mockDailyStats}>
+            <AreaChart data={dailyStats}>
               <defs>
                 <linearGradient id="visitsGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#00BFA6" stopOpacity={0.2} />
@@ -1010,7 +1334,7 @@ function AnalyticsView() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }} className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-clash font-semibold text-base mb-4" style={{ color: 'var(--text-primary)' }}>Revenue Over Time (30 Days)</h3>
         <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={mockDailyStats}>
+          <AreaChart data={dailyStats}>
             <defs>
               <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#6C63FF" stopOpacity={0.2} />

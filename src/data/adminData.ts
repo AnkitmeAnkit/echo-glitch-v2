@@ -1,35 +1,112 @@
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  type: 'PLAYBOOK' | 'BLOG' | 'NEWS';
+  description?: string;
+  created_at: string;
+}
+
+export interface AdminPlaybook {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  price: number;
+  cover_image_url?: string;
+  file_path?: string;
+  is_featured: boolean;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  category_id?: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  
+  // Relations mapped
+  categories?: { name: string; slug: string };
+  playbook_reviews?: { rating: number; review_text: string; is_approved: boolean }[];
+}
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt?: string;
+  cover_image_url?: string;
+  author_id?: string;
+  category_id?: string;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  is_featured: boolean;
+  published_at?: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  
+  // Relations mapped
+  categories?: { name: string; slug: string };
+  users?: { full_name: string; avatar_url: string };
+}
+
+export interface NewsPost {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt?: string;
+  category_id?: string;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  timeline_date: string;
+  published_at?: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  
+  // Relations mapped
+  categories?: { name: string; slug: string };
+  users?: { full_name: string; avatar_url: string };
+}
+
 export interface Purchase {
   id: string;
-  playbookId: number;
-  playbookTitle: string;
-  customerName: string;
+  playbook_id?: string;
+  full_name: string;
   email: string;
   phone: string;
   profession: string;
   amount: number;
-  date: string;
-  status: 'Completed' | 'Pending';
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+  created_at: string;
+  
+  // Custom joined relations
+  playbooks?: { title: string };
 }
 
 export interface FeedbackEntry {
   id: string;
+  type: 'FEEDBACK' | 'CUSTOM_REQUEST';
   name: string;
   email: string;
-  category: 'Suggestion' | 'Bug Report' | 'Feature Request' | 'General';
-  message: string;
-  date: string;
-  status: 'New' | 'In Progress' | 'Resolved';
+  message_or_requirements: string;
+  budget_range?: string;
+  status: 'NEW' | 'REVIEWED' | 'RESOLVED';
+  created_at: string;
 }
 
-export interface CustomRequest {
+export interface CustomRequest extends FeedbackEntry {}
+
+export interface Review {
   id: string;
-  name: string;
-  email: string;
-  topic: string;
-  details: string;
-  budget?: string;
-  date: string;
-  status: 'New' | 'Contacted' | 'In Progress' | 'Completed' | 'Declined';
+  playbook_id: string;
+  user_id: string;
+  rating: number;
+  review_text: string;
+  is_approved: boolean;
+  created_at: string;
+  
+  // Relations mapped
+  playbooks?: { title: string };
+  users?: { full_name: string; avatar_url: string };
 }
 
 export interface DailyStat {
@@ -39,91 +116,3 @@ export interface DailyStat {
   revenue: number;
   visits: number;
 }
-
-export interface Review {
-  id: string;
-  playbookId: number;
-  playbookTitle: string;
-  userName: string;
-  avatar: string;
-  rating: number;
-  comment: string;
-  date: string;
-  approved: boolean;
-}
-
-export interface AdminPlaybook {
-  id: number;
-  title: string;
-  description: string;
-  category: string;
-  price: number;
-  status: 'Published' | 'Draft';
-  downloads: number;
-  coverImage: string;
-  fileUrl: string;
-  rating: number;
-  reviewCount: number;
-}
-
-export interface BlogPost {
-  id: string;
-  title: string;
-  slug: string;
-  category: string;
-  author: string;
-  excerpt: string;
-  content: string;
-  status: 'Published' | 'Draft';
-  date: string;
-  featured: boolean;
-}
-
-export interface NewsPost {
-  id: string;
-  title: string;
-  slug: string;
-  category: 'Product Update' | 'Industry' | 'Announcement';
-  author: string;
-  excerpt: string;
-  content: string;
-  status: 'Published' | 'Draft';
-  date: string;
-  featured: boolean;
-}
-
-export const mockPurchases: Purchase[] = [];
-
-export const mockFeedback: FeedbackEntry[] = [];
-
-export const mockCustomRequests: CustomRequest[] = [];
-
-export const generateDailyStats = (): DailyStat[] => {
-  return [];
-};
-
-export const mockDailyStats: DailyStat[] = [];
-
-export const mockReviews: Review[] = [];
-
-export const mockAdminPlaybooks: AdminPlaybook[] = [];
-
-export const mockBlogPosts: BlogPost[] = [];
-
-export const mockNewsPosts: NewsPost[] = [];
-
-export const analyticsSummary = {
-  totalPlaybooks: 0,
-  totalPurchases: 0,
-  totalDownloads: 0,
-  totalRevenue: 0,
-  activeUsers: 0,
-  freeDownloads: 0,
-  paidDownloads: 0,
-};
-
-export const trafficSources: any[] = [];
-
-export const playbooksByCategory: any[] = [];
-
-export const freeVsPaid: any[] = [];
