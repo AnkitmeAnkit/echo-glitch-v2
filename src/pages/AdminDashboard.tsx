@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen, ShoppingCart, FileText, Star, Search,
   Pencil, Trash2, Eye, Plus, X, Download,
-  CheckCircle, Clock, DollarSign,
+  CheckCircle, Clock, DollarSign, RefreshCw,
   LogOut, Inbox, Newspaper, ClipboardList,
 } from 'lucide-react';
 import {
@@ -16,12 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import AdminSidebar from '@/components/AdminSidebar';
 import type { AdminView } from '@/components/AdminSidebar';
 import StatCard from '@/components/StatCard';
-import {
-  mockPurchases, mockFeedback, mockCustomRequests,
-  mockDailyStats, mockReviews, mockAdminPlaybooks,
-  mockBlogPosts, mockNewsPosts, analyticsSummary,
-  playbooksByCategory, freeVsPaid,
-} from '@/data/adminData';
+import { supabase } from '@/lib/supabase';
 import type {
   FeedbackEntry, CustomRequest,
   AdminPlaybook, BlogPost, NewsPost,
@@ -41,17 +36,54 @@ const viewTitles: Record<AdminView, string> = {
 
 /* ──────────────────── Dashboard Overview ──────────────────── */
 function DashboardOverview() {
-  const recentPurchases = mockPurchases.slice(0, 5);
-  const recentFeedback = mockFeedback.slice(0, 5);
+  const [stats, setStats] = useState({ totalPlaybooks: 0, totalPurchases: 0, totalBlogPosts: 0, totalRevenue: 0 });
+  const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
+  const [recentFeedback, setRecentFeedback] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchDashboard() {
+      setLoading(true);
+      const [playbooksRes, purchasesRes, blogRes, feedbackRes] = await Promise.all([
+        supabase.from('playbooks').select('id', { count: 'exact', head: true }),
+        supabase.from('orders').select('id, playbook_title, customer_name, amount, status, created_at').order('created_at', { ascending: false }).limit(5),
+        supabase.from('blog_posts').select('id', { count: 'exact', head: true }),
+        supabase.from('feedback').select('id, name, category, message, created_at, status').order('created_at', { ascending: false }).limit(5),
+      ]);
+
+      // Total revenue from all completed orders
+      const { data: revenueData } = await supabase.from('orders').select('amount').eq('status', 'Completed');
+      const totalRevenue = revenueData?.reduce((sum: number, o: any) => sum + (o.amount || 0), 0) || 0;
+
+      setStats({
+        totalPlaybooks: playbooksRes.count || 0,
+        totalPurchases: purchasesRes.data?.length || 0,
+        totalBlogPosts: blogRes.count || 0,
+        totalRevenue,
+      });
+      setRecentPurchases(purchasesRes.data || []);
+      setRecentFeedback(feedbackRes.data || []);
+      setLoading(false);
+    }
+    fetchDashboard();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-6 h-6 animate-spin text-[#6C63FF]" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Stats Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-        <StatCard title="Total Playbooks" value={analyticsSummary.totalPlaybooks} icon={<BookOpen className="w-5 h-5" />} iconColor="#6C63FF" trend="+3 this month" delay={0} />
-        <StatCard title="Total Purchases" value={analyticsSummary.totalPurchases} icon={<ShoppingCart className="w-5 h-5" />} iconColor="#00BFA6" trend="+12% this week" delay={0.08} />
-        <StatCard title="Total Blog Posts" value={mockBlogPosts.length} icon={<FileText className="w-5 h-5" />} iconColor="#F59E0B" delay={0.16} />
-        <StatCard title="Total Revenue" value={`$${analyticsSummary.totalRevenue.toLocaleString()}`} icon={<DollarSign className="w-5 h-5" />} iconColor="#F43F5E" trend="+8% this month" delay={0.24} />
+        <StatCard title="Total Playbooks" value={stats.totalPlaybooks} icon={<BookOpen className="w-5 h-5" />} iconColor="#6C63FF" delay={0} />
+        <StatCard title="Total Purchases" value={stats.totalPurchases} icon={<ShoppingCart className="w-5 h-5" />} iconColor="#00BFA6" delay={0.08} />
+        <StatCard title="Total Blog Posts" value={stats.totalBlogPosts} icon={<FileText className="w-5 h-5" />} iconColor="#F59E0B" delay={0.16} />
+        <StatCard title="Total Revenue" value={`$${stats.totalRevenue.toLocaleString()}`} icon={<DollarSign className="w-5 h-5" />} iconColor="#F43F5E" delay={0.24} />
       </div>
 
       {/* Recent Activity */}
@@ -80,8 +112,8 @@ function DashboardOverview() {
               <tbody className="divide-y divide-gray-100">
                 {recentPurchases.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-3 px-4 text-sm font-medium truncate max-w-[160px]" style={{ color: 'var(--text-primary)' }}>{p.playbookTitle}</td>
-                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.customerName}</td>
+                    <td className="py-3 px-4 text-sm font-medium truncate max-w-[160px]" style={{ color: 'var(--text-primary)' }}>{p.playbook_title || p.playbookTitle}</td>
+                    <td className="py-3 px-4 text-sm" style={{ color: 'var(--text-secondary)' }}>{p.customer_name || p.customerName}</td>
                     <td className="py-3 px-4 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>${p.amount}</td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${p.status === 'Completed' ? 'bg-[#00BFA6]/10 text-[#00BFA6]' : 'bg-[#F59E0B]/10 text-[#F59E0B]'}`}>
@@ -114,7 +146,7 @@ function DashboardOverview() {
                   <span className="text-xs px-2 py-0.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF] font-medium">{f.category}</span>
                 </div>
                 <p className="text-xs line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{f.message}</p>
-                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{f.date}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{f.created_at ? new Date(f.created_at).toLocaleDateString() : f.date}</p>
               </div>
             ))}
           </div>
@@ -130,7 +162,7 @@ function DashboardOverview() {
       >
         <h3 className="font-clash font-semibold text-base mb-4" style={{ color: 'var(--text-primary)' }}>Weekly Purchases</h3>
         <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={mockDailyStats.slice(-7)}>
+          <LineChart data={[]}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="date" tickFormatter={(v: string) => v.slice(5)} stroke="#A0AEC0" fontSize={12} />
             <YAxis stroke="#A0AEC0" fontSize={12} />

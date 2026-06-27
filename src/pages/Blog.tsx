@@ -14,10 +14,12 @@ import {
   ChevronRight,
   Check,
   Mail,
+  FileText,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { blogPosts, categories } from '@/data/blogPosts';
+import { supabase } from '@/lib/supabase';
+import { categories } from '@/data/blogPosts';
 import type { BlogPost, Category } from '@/data/blogPosts';
 
 /* ─── easing ─── */
@@ -292,6 +294,40 @@ export default function Blog() {
   const [toast, setToast] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchPosts() {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('blog_posts')
+        .select('*')
+        .eq('status', 'Published')
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        // Map Supabase snake_case to camelCase expected by the UI
+        const mapped: BlogPost[] = data.map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          slug: p.slug,
+          category: p.category,
+          excerpt: p.excerpt,
+          content: p.content,
+          coverImage: p.cover_image || '',
+          status: p.status,
+          featured: p.featured,
+          author: { name: p.author || 'Echo Glitch', avatar: '' },
+          date: new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          readTime: `${Math.max(1, Math.ceil((p.content?.split(' ').length || 0) / 200))} min read`,
+        }));
+        setBlogPosts(mapped);
+      }
+      setLoading(false);
+    }
+    fetchPosts();
+  }, []);
+
   const featuredPost = blogPosts.find((p) => p.featured) || blogPosts[0];
   const filteredPosts =
     activeCategory === 'All'
@@ -299,15 +335,6 @@ export default function Blog() {
       : blogPosts.filter(
           (p) => p.category === activeCategory && p.id !== featuredPost?.id
         );
-
-  if (blogPosts.length === 0) {
-    return (
-      <div className="min-h-screen bg-dark-base pt-[120px] pb-24 text-white font-sans flex flex-col items-center justify-center">
-        <h2 className="font-clash font-semibold text-3xl mb-4">No posts yet</h2>
-        <p className="text-white/50">Check back later for new articles and updates.</p>
-      </div>
-    );
-  }
 
   const handleScroll = useCallback((direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -373,101 +400,107 @@ export default function Blog() {
 
       {/* ════════════ Section 1: Featured Hero ════════════ */}
       <section className="relative min-h-[70vh] flex items-center">
-        {/* Background Image */}
+        {/* Background */}
         <div className="absolute inset-0">
-          <img
-            src={featuredPost.coverImage}
-            alt=""
-            className="w-full h-full object-cover"
-          />
+          {featuredPost?.coverImage ? (
+            <img src={featuredPost.coverImage} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #0F172A 0%, #6C63FF 60%, #00BFA6 100%)' }} />
+          )}
           <div
             className="absolute inset-0"
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(108, 99, 255, 0.6) 50%, rgba(0, 191, 166, 0.4) 100%)',
-            }}
+            style={{ background: 'linear-gradient(135deg, rgba(15,23,42,0.85) 0%, rgba(108,99,255,0.6) 50%, rgba(0,191,166,0.4) 100%)' }}
           />
         </div>
 
         <div className="relative z-10 max-w-[1280px] mx-auto px-6 py-24 md:py-32 w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-12 items-center">
-            {/* Left: Image Area */}
-            <motion.div
-              initial={{ opacity: 0, x: -40 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, ease: easeExpo }}
-              className="lg:col-span-3 hidden lg:block"
-            >
-              <div className="rounded-2xl overflow-hidden shadow-2xl">
-                <img
-                  src={featuredPost.coverImage}
-                  alt={featuredPost.title}
-                  className="w-full aspect-[16/10] object-cover"
-                />
-              </div>
-            </motion.div>
-
-            {/* Right: Content */}
-            <div className="lg:col-span-2">
-              <motion.span
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, type: 'spring' }}
-                className="inline-block bg-accent-violet text-white text-xs font-medium uppercase tracking-wider px-3 py-1 rounded-full mb-4"
-              >
-                FEATURED
-              </motion.span>
-
-              <motion.h1
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1, duration: 0.7, ease: easeExpo }}
-                className="font-clash font-bold text-white text-2xl md:text-3xl lg:text-4xl leading-tight mb-4"
-                style={{ letterSpacing: '-0.02em' }}
-              >
-                {featuredPost.title}
-              </motion.h1>
-
-              <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.6, ease: easeExpo }}
-                className="text-white/80 text-base md:text-lg leading-relaxed mb-6"
-              >
-                {featuredPost.excerpt}
-              </motion.p>
-
+          {loading ? (
+            <div className="flex justify-center items-center h-48">
+              <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+            </div>
+          ) : featuredPost ? (
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-12 items-center">
+              {/* Left: Image */}
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.5, ease: easeExpo }}
-                className="flex items-center gap-3 mb-6"
+                initial={{ opacity: 0, x: -40 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, ease: easeExpo }}
+                className="lg:col-span-3 hidden lg:block"
               >
-                <div className="w-10 h-10 rounded-full bg-accent-violet/30 flex items-center justify-center">
-                  <User className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <p className="text-white font-medium text-sm">
-                    {featuredPost.author.name}
-                  </p>
-                  <p className="text-white/60 text-xs">
-                    {featuredPost.date} · {featuredPost.readTime}
-                  </p>
+                <div className="rounded-2xl overflow-hidden shadow-2xl">
+                  {featuredPost.coverImage ? (
+                    <img src={featuredPost.coverImage} alt={featuredPost.title} className="w-full aspect-[16/10] object-cover" />
+                  ) : (
+                    <div className="w-full aspect-[16/10] bg-white/10 flex items-center justify-center">
+                      <FileText className="w-16 h-16 text-white/30" />
+                    </div>
+                  )}
                 </div>
               </motion.div>
 
-              <motion.button
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4, duration: 0.5, ease: easeExpo }}
-                onClick={() => setSelectedPost(featuredPost)}
-                className="inline-flex items-center gap-2 bg-accent-violet text-white rounded-full px-8 py-3.5 font-medium transition-all duration-200 hover:brightness-110 hover:scale-[1.02]"
-              >
-                Read Article
-                <ArrowRight className="w-4 h-4" />
-              </motion.button>
+              {/* Right: Content */}
+              <div className="lg:col-span-2">
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3, type: 'spring' }}
+                  className="inline-block bg-accent-violet text-white text-xs font-medium uppercase tracking-wider px-3 py-1 rounded-full mb-4"
+                >
+                  FEATURED
+                </motion.span>
+                <motion.h1
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1, duration: 0.7, ease: easeExpo }}
+                  className="font-clash font-bold text-white text-2xl md:text-3xl lg:text-4xl leading-tight mb-4"
+                  style={{ letterSpacing: '-0.02em' }}
+                >
+                  {featuredPost.title}
+                </motion.h1>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.6, ease: easeExpo }}
+                  className="text-white/80 text-base md:text-lg leading-relaxed mb-6"
+                >
+                  {featuredPost.excerpt}
+                </motion.p>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3, duration: 0.5, ease: easeExpo }}
+                  className="flex items-center gap-3 mb-6"
+                >
+                  <div className="w-10 h-10 rounded-full bg-accent-violet/30 flex items-center justify-center">
+                    <User className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-white font-medium text-sm">{featuredPost.author.name}</p>
+                    <p className="text-white/60 text-xs">{featuredPost.date} · {featuredPost.readTime}</p>
+                  </div>
+                </motion.div>
+                <motion.button
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4, duration: 0.5, ease: easeExpo }}
+                  onClick={() => setSelectedPost(featuredPost)}
+                  className="inline-flex items-center gap-2 bg-accent-violet text-white rounded-full px-8 py-3.5 font-medium transition-all duration-200 hover:brightness-110 hover:scale-[1.02]"
+                >
+                  Read Article
+                  <ArrowRight className="w-4 h-4" />
+                </motion.button>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Empty state hero */
+            <div className="flex flex-col items-center justify-center text-center py-16">
+              <div className="w-20 h-20 rounded-2xl bg-white/10 flex items-center justify-center mb-6">
+                <FileText className="w-10 h-10 text-white/50" />
+              </div>
+              <h1 className="font-clash font-bold text-white text-3xl md:text-4xl mb-3">No articles yet</h1>
+              <p className="text-white/60 text-lg max-w-md">The first article is being prepared. Check back soon for in-depth AI guides and tutorials.</p>
+            </div>
+          )}
         </div>
       </section>
 
