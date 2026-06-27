@@ -295,10 +295,19 @@ export default function Blog() {
   const featuredPost = blogPosts.find((p) => p.featured) || blogPosts[0];
   const filteredPosts =
     activeCategory === 'All'
-      ? blogPosts.filter((p) => p.id !== featuredPost.id)
+      ? blogPosts.filter((p) => p.id !== featuredPost?.id)
       : blogPosts.filter(
-          (p) => p.category === activeCategory && p.id !== featuredPost.id
+          (p) => p.category === activeCategory && p.id !== featuredPost?.id
         );
+
+  if (blogPosts.length === 0) {
+    return (
+      <div className="min-h-screen bg-dark-base pt-[120px] pb-24 text-white font-sans flex flex-col items-center justify-center">
+        <h2 className="font-clash font-semibold text-3xl mb-4">No posts yet</h2>
+        <p className="text-white/50">Check back later for new articles and updates.</p>
+      </div>
+    );
+  }
 
   const handleScroll = useCallback((direction: 'left' | 'right') => {
     if (scrollRef.current) {
