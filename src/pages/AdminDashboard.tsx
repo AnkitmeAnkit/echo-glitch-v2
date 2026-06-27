@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -24,6 +24,7 @@ import type {
 import {
   mockPurchases, mockFeedback, mockCustomRequests,
   mockReviews, mockDailyStats, playbooksByCategory, freeVsPaid,
+  mockAdminPlaybooks, mockBlogPosts, mockNewsPosts,
 } from '@/data/adminData';
 
 const viewTitles: Record<AdminView, string> = {
