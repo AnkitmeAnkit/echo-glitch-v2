@@ -122,8 +122,8 @@ export const analyticsSummary = {
   paidDownloads: 0,
 };
 
-export const trafficSources = [];
+export const trafficSources: any[] = [];
 
-export const playbooksByCategory = [];
+export const playbooksByCategory: any[] = [];
 
-export const freeVsPaid = [];
+export const freeVsPaid: any[] = [];
