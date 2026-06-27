@@ -97,7 +97,13 @@ export default function PurchaseModal({
   };
 
   const handleContinue = () => {
-    if (validateInfo()) setStep('payment');
+    if (validateInfo()) {
+      if (playbookPrice === 0) {
+        setStep('success');
+      } else {
+        setStep('payment');
+      }
+    }
   };
 
   const handleComplete = () => {
@@ -154,25 +160,25 @@ export default function PurchaseModal({
 
             {/* Step Indicator */}
             <div className="flex items-center gap-2 mb-6">
-              {['info', 'payment', 'success'].map((s, i) => (
+              {(playbookPrice === 0 ? ['info', 'success'] : ['info', 'payment', 'success'] as Step[]).map((s, i, arr) => (
                 <div key={s} className="flex items-center gap-2">
                   <div
                     className={
                       'w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ' +
                       (step === s
                         ? 'bg-accent-violet text-white'
-                        : i < ['info', 'payment', 'success'].indexOf(step)
+                        : i < arr.indexOf(step)
                           ? 'bg-accent-teal text-white'
                           : 'bg-gray-200 text-gray-500')
                     }
                   >
-                    {i < ['info', 'payment', 'success'].indexOf(step) ? (
+                    {i < arr.indexOf(step) ? (
                       <Check className="w-4 h-4" />
                     ) : (
                       i + 1
                     )}
                   </div>
-                  {i < 2 && <div className="w-8 h-0.5 bg-gray-200 rounded" />}
+                  {i < arr.length - 1 && <div className="w-8 h-0.5 bg-gray-200 rounded" />}
                 </div>
               ))}
             </div>
@@ -309,7 +315,7 @@ export default function PurchaseModal({
                       onClick={handleContinue}
                       className="w-full bg-accent-violet text-white rounded-full py-3.5 font-medium text-sm transition-all hover:brightness-110 hover:scale-[1.02] mt-2"
                     >
-                      Continue to Payment &rarr;
+                      {playbookPrice === 0 ? 'Download Playbook' : <>Continue to Payment &rarr;</>}
                     </button>
                   </div>
                 </motion.div>
@@ -558,7 +564,7 @@ export default function PurchaseModal({
                   </motion.div>
 
                   <h2 className="font-clash font-semibold text-2xl text-[#1A1A1A] mb-2">
-                    Purchase Successful!
+                    {playbookPrice === 0 ? 'Download Successful!' : 'Purchase Successful!'}
                   </h2>
                   <p className="text-[#4A5568] text-sm mb-2 max-w-[300px]">
                     Your playbook will be sent to{' '}
